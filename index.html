@@ -445,6 +445,20 @@
 </div>
 <div id="pendingTrades"></div>
 
+<!-- ─── Closed Trades ─────────────────────────────────────────── -->
+<div class="section-head">
+  <div class="section-title">Closed Trades</div>
+  <div class="section-badge" id="closedCount">0</div>
+</div>
+<div id="closedTrades"></div>
+
+<!-- ─── Chev's Playbook ───────────────────────────────────────── -->
+<div class="section-head" onclick="togglePlaybook()" style="cursor:pointer">
+  <div class="section-title">Chev's Playbook</div>
+  <div class="section-badge" id="playbookToggle">▼</div>
+</div>
+<div id="playbookBlock" style="display:none; margin: 0 12px 12px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; font-size:12px; color:var(--white); line-height:1.6; white-space:pre-wrap; font-family:var(--mono);"></div>
+
 <!-- ─── Footer ───────────────────────────────────────────────── -->
 <div class="footer" id="footer">Connecting to Chev...</div>
 
@@ -481,7 +495,7 @@
     </div>
     <div class="modal-tags" id="mTags"></div>
     <div class="modal-reasoning" id="mReasoningBlock" style="display:none">
-      <div class="modal-reasoning-label">⚡ Chev's Take</div>
+      <div class="modal-reasoning-label" id="mReasoningLabel">⚡ Chev's Take</div>
       <div class="modal-reasoning-text" id="mReasoning">—</div>
     </div>
   </div>
@@ -664,6 +678,23 @@ function renderAll() {
     pendingEl.innerHTML = pending.map(pendingCardHTML).join('');
   }
 
+  // Closed trades
+  const closed    = (state.closed || []).slice().reverse(); // newest first
+  const closedEl  = document.getElementById('closedTrades');
+  document.getElementById('closedCount').textContent = closed.length;
+  if (!closed.length) {
+    closedEl.innerHTML = '<div class="empty-state">No closed trades yet</div>';
+  } else {
+    closedEl.innerHTML = closed.map(closedCardHTML).join('');
+    closedEl.querySelectorAll('.trade-emoji').forEach(el => parseEmoji(el));
+  }
+
+  // Playbook (update content if visible)
+  const playbookBlock = document.getElementById('playbookBlock');
+  if (playbookBlock.style.display !== 'none' && state.playbook) {
+    playbookBlock.textContent = state.playbook;
+  }
+
   // Footer
   document.getElementById('footer').textContent =
     'Last updated ' + (state.updated || new Date().toLocaleTimeString());
@@ -734,8 +765,84 @@ function pendingCardHTML(t) {
   </div>`;
 }
 
+// ─── Closed trades ─────────────────────────────────────────────
+function closedCardHTML(e) {
+  const isWin    = e.outcome === 'WIN';
+  const pnlCls   = isWin ? 'up' : 'down';
+  const border   = isWin ? 'var(--green)' : 'var(--red)';
+  const em       = isWin ? '✅' : '❌';
+  const outPill  = `<span class="dir-pill ${isWin ? 'dir-long' : 'dir-short'}" style="margin-left:4px">${e.outcome}</span>`;
+  return `<div class="trade-card" style="border-left-color:${border}" onclick="showClosedModal('${e.ts}')">
+    <div class="trade-top">
+      <div class="trade-left">
+        <div class="trade-emoji">${em}</div>
+        <div class="trade-symbol">${e.symbol}</div>
+        <div class="dir-pill dir-${e.direction}">${e.direction}</div>
+        ${outPill}
+      </div>
+      <div class="trade-pnl ${pnlCls}">${fmtPnl(e.pnl)}</div>
+    </div>
+    <div class="trade-meta">
+      Entry ${fmtPrice(e.symbol, e.entry)} &nbsp;→&nbsp; Exit ${fmtPrice(e.symbol, e.exit_price)} &nbsp;·&nbsp; ${e.ts.slice(0,10)}
+    </div>
+  </div>`;
+}
+
+function showClosedModal(ts) {
+  const e = (state?.closed || []).find(c => c.ts === ts);
+  if (!e) return;
+  modalTrade  = null;
+  modalClosed = e;
+  const isWin = e.outcome === 'WIN';
+
+  document.getElementById('modalTitle').innerHTML =
+    `${e.symbol} <span class="dir-pill dir-${e.direction}">${e.direction}</span> <span class="dir-pill ${isWin ? 'dir-long' : 'dir-short'}">${e.outcome}</span>`;
+
+  document.getElementById('modalPrice').textContent = fmtPrice(e.symbol, e.exit_price);
+  document.querySelector('.modal-price-label').textContent = 'Exit Price';
+
+  const pnlEl = document.getElementById('modalPnl');
+  pnlEl.textContent = fmtPnl(e.pnl);
+  pnlEl.className   = 'modal-pnl-val ' + pnlClass(e.pnl);
+
+  document.getElementById('modalProgBar').style.width = '0%';
+  document.getElementById('modalProgPct').textContent = '';
+
+  document.getElementById('mEntry').textContent = fmtPrice(e.symbol, e.entry);
+  document.getElementById('mTP').textContent    = fmtPrice(e.symbol, e.tp);
+  document.getElementById('mSL').textContent    = fmtPrice(e.symbol, e.sl);
+  document.getElementById('mRR').textContent    = '—';
+  document.getElementById('mSize').textContent  = 'Held ' + (e.duration || '?');
+  document.getElementById('mLev').textContent   = '—';
+
+  const tags = (e.tags || '').split(/[,\s·]+/).map(s => s.trim()).filter(Boolean);
+  document.getElementById('mTags').innerHTML = tags.map(t => `<span class="tag-chip">${t}</span>`).join('');
+
+  const rb = document.getElementById('mReasoningBlock');
+  const rt = document.getElementById('mReasoning');
+  rb.style.display = e.analysis ? 'block' : 'none';
+  rt.textContent   = e.analysis || '';
+  document.getElementById('mReasoningLabel').textContent = "⚡ Chev's Post-Mortem";
+
+  document.getElementById('modalBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+// ─── Playbook toggle ────────────────────────────────────────────
+function togglePlaybook() {
+  const block   = document.getElementById('playbookBlock');
+  const toggle  = document.getElementById('playbookToggle');
+  const visible = block.style.display !== 'none';
+  block.style.display  = visible ? 'none' : 'block';
+  toggle.textContent   = visible ? '▼' : '▲';
+  if (!visible && state?.playbook) block.textContent = state.playbook;
+}
+
 // ─── Modal ─────────────────────────────────────────────────────
+let modalClosed = null;
+
 function showModal(sym) {
+  modalClosed = null;
   const trade = (state?.trades || []).find(t => t.symbol === sym);
   if (!trade) return;
   modalTrade = trade;
@@ -784,6 +891,7 @@ function updateModal(trade) {
   // Chev reasoning
   const rb = document.getElementById('mReasoningBlock');
   const rt = document.getElementById('mReasoning');
+  document.getElementById('mReasoningLabel').textContent = "⚡ Chev's Take";
   if (trade.reasoning && trade.reasoning.trim()) {
     rb.style.display = 'block';
     rt.textContent   = trade.reasoning;
@@ -866,3 +974,4 @@ setInterval(forexTick,  2000);      // FreeForexAPI every 2s
 </script>
 </body>
 </html>
+

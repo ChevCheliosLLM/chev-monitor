@@ -255,23 +255,17 @@
     text-align: right;
   }
 
-  /* ── Scale bar (cards) ───────────────────────────────────── */
-  .scale-wrap { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  /* ── Tug-of-war bar (cards) ─────────────────────────────── */
+  .tow-wrap   { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .tow-track  { flex: 1; height: 7px; display: flex; border-radius: 100px; overflow: hidden; }
+  .tow-green  { height: 100%; background: var(--green); transition: width .4s ease; min-width: 0; }
+  .tow-red    { height: 100%; background: var(--red);   flex: 1; }
+  .tow-pct    { font-family: var(--mono); font-size: 10px; color: var(--dim); min-width: 32px; text-align: right; }
   .scale-labels {
     display: flex; justify-content: space-between;
     font-size: 9px; color: var(--dim); font-family: var(--mono);
     margin-top: 3px;
   }
-  .scale-track {
-    flex: 1; height: 6px; display: flex; align-items: stretch;
-    border-radius: 3px; overflow: hidden; background: var(--border);
-  }
-  .scale-half-left  { flex: 1; display: flex; justify-content: flex-end; overflow: hidden; }
-  .scale-half-right { flex: 1; display: flex; justify-content: flex-start; overflow: hidden; }
-  .scale-loss { height: 100%; background: var(--red);   transition: width .5s ease; }
-  .scale-gain { height: 100%; background: var(--green); transition: width .5s ease; }
-  .scale-mid  { width: 2px; background: #555; flex-shrink: 0; }
-  .scale-pct  { font-family: var(--mono); font-size: 10px; color: var(--dim); min-width: 32px; text-align: right; }
 
   /* ── Pending card ────────────────────────────────────────── */
   .pending-card {
@@ -746,24 +740,24 @@ function renderWatchlist() {
   prevPrices = { ...prices };
 }
 
-function scaleBar(t) {
+function towBar(t) {
   const p = livePrice(t) || t.entry;
   const isLong = t.direction === 'long';
   const gainRange = isLong ? t.tp - t.entry : t.entry - t.tp;
   const lossRange = isLong ? t.entry - t.sl : t.sl - t.entry;
   const gainMove  = isLong ? p - t.entry    : t.entry - p;
   const lossMove  = isLong ? t.entry - p    : p - t.entry;
-  const gainPct = gainRange > 0 ? Math.min(100, Math.max(0, (gainMove / gainRange) * 100)) : 0;
-  const lossPct = lossRange > 0 ? Math.min(100, Math.max(0, (lossMove / lossRange) * 100)) : 0;
-  const label   = gainMove > 0 ? `+${gainPct.toFixed(0)}%` : lossPct > 0 ? `-${lossPct.toFixed(0)}%` : '0%';
+  const gainPct   = gainRange > 0 ? Math.min(100, Math.max(0, (gainMove / gainRange) * 100)) : 0;
+  const lossPct   = lossRange > 0 ? Math.min(100, Math.max(0, (lossMove / lossRange) * 100)) : 0;
+  const greenPct  = 50 + (gainPct / 2) - (lossPct / 2);
+  const label     = gainMove > 0 ? `+${gainPct.toFixed(0)}%` : lossPct > 0 ? `-${lossPct.toFixed(0)}%` : '0%';
   return `
-    <div class="scale-wrap">
-      <div class="scale-track">
-        <div class="scale-half-left"><div class="scale-loss" style="width:${lossPct.toFixed(1)}%"></div></div>
-        <div class="scale-mid"></div>
-        <div class="scale-half-right"><div class="scale-gain" style="width:${gainPct.toFixed(1)}%"></div></div>
+    <div class="tow-wrap">
+      <div class="tow-track">
+        <div class="tow-green" style="width:${greenPct.toFixed(1)}%"></div>
+        <div class="tow-red"></div>
       </div>
-      <div class="scale-pct">${label}</div>
+      <div class="tow-pct">${label}</div>
     </div>
     <div class="scale-labels">
       <span>SL ${fmtPrice(t.symbol, t.sl)}</span>
@@ -786,7 +780,7 @@ function tradeCardHTML(t) {
     <div class="trade-meta">
       Entry ${fmtPrice(t.symbol, t.entry)}
     </div>
-    ${scaleBar(t)}
+    ${towBar(t)}
   </div>`;
 }
 
@@ -1001,24 +995,23 @@ function updatePnlNumbers() {
     const pnl  = calcPnl(t);
     const prog = calcProgress(t);
     const pnlEl = card.querySelector('.trade-pnl');
-    const emoEl   = card.querySelector('.trade-emoji');
-    const lossFill = card.querySelector('.scale-loss');
-    const gainFill = card.querySelector('.scale-gain');
-    const scalePct = card.querySelector('.scale-pct');
+    const emoEl    = card.querySelector('.trade-emoji');
+    const towGreen = card.querySelector('.tow-green');
+    const towPctEl = card.querySelector('.tow-pct');
     if (pnlEl) { pnlEl.textContent = fmtPnl(pnl); pnlEl.className = 'trade-pnl ' + pnlClass(pnl); }
     if (emoEl) { const em = mood(pnl); if (emoEl.textContent !== em) { emoEl.textContent = em; parseEmoji(emoEl); } }
-    if (lossFill || gainFill) {
+    if (towGreen) {
       const p = livePrice(t) || t.entry;
       const isLong = t.direction === 'long';
       const gainRange = isLong ? t.tp - t.entry : t.entry - t.tp;
       const lossRange = isLong ? t.entry - t.sl : t.sl - t.entry;
       const gainMove  = isLong ? p - t.entry    : t.entry - p;
       const lossMove  = isLong ? t.entry - p    : p - t.entry;
-      const gainPct = gainRange > 0 ? Math.min(100, Math.max(0, (gainMove / gainRange) * 100)) : 0;
-      const lossPct = lossRange > 0 ? Math.min(100, Math.max(0, (lossMove / lossRange) * 100)) : 0;
-      if (gainFill) gainFill.style.width = gainPct.toFixed(1) + '%';
-      if (lossFill) lossFill.style.width = lossPct.toFixed(1) + '%';
-      if (scalePct) scalePct.textContent = gainMove > 0 ? `+${gainPct.toFixed(0)}%` : lossPct > 0 ? `-${lossPct.toFixed(0)}%` : '0%';
+      const gainPct  = gainRange > 0 ? Math.min(100, Math.max(0, (gainMove / gainRange) * 100)) : 0;
+      const lossPct  = lossRange > 0 ? Math.min(100, Math.max(0, (lossMove / lossRange) * 100)) : 0;
+      const greenPct = 50 + (gainPct / 2) - (lossPct / 2);
+      towGreen.style.width = greenPct.toFixed(1) + '%';
+      if (towPctEl) towPctEl.textContent = gainMove > 0 ? `+${gainPct.toFixed(0)}%` : lossPct > 0 ? `-${lossPct.toFixed(0)}%` : '0%';
     }
   });
 

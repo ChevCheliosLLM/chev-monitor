@@ -404,6 +404,7 @@
   }
   .modal-reasoning-label { font-size: 10px; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-weight: 600; }
   .modal-reasoning-text  { font-size: 13px; color: var(--white); line-height: 1.55; }
+  .move-entry { font-family: var(--mono); font-size: 11px; color: var(--dim); padding: 2px 0; }
 </style>
 </head>
 <body>
@@ -511,6 +512,10 @@
     <div class="modal-reasoning" id="mReasoningBlock" style="display:none">
       <div class="modal-reasoning-label" id="mReasoningLabel">⚡ Chev's Take</div>
       <div class="modal-reasoning-text" id="mReasoning">—</div>
+    </div>
+    <div class="modal-reasoning" id="mMovesBlock" style="display:none">
+      <div class="modal-reasoning-label" id="mMovesCount">Chev adjusted 0 times</div>
+      <div id="mMovesList"></div>
     </div>
   </div>
 </div>
@@ -814,7 +819,7 @@ function closedCardHTML(e) {
       <div class="trade-pnl ${pnlCls}">${fmtPnl(e.pnl)}</div>
     </div>
     <div class="trade-meta">
-      Entry ${fmtPrice(e.symbol, e.entry)} &nbsp;→&nbsp; Exit ${fmtPrice(e.symbol, e.exit_price)} &nbsp;·&nbsp; ${e.ts.slice(0,10)}
+      Entry ${fmtPrice(e.symbol, e.entry)} &nbsp;→&nbsp; Exit ${fmtPrice(e.symbol, e.exit_price)} &nbsp;·&nbsp; ${e.ts.slice(0,16).replace('T',' ')}
     </div>
   </div>`;
 }
@@ -861,6 +866,18 @@ function showClosedModal(ts) {
   rb.style.display = e.analysis ? 'block' : 'none';
   rt.textContent   = e.analysis || '';
   document.getElementById('mReasoningLabel').textContent = "⚡ Chev's Post-Mortem";
+
+  const cMoves = e.chev_moves || [];
+  const cmb = document.getElementById('mMovesBlock');
+  const cml = document.getElementById('mMovesList');
+  if (cMoves.length > 0) {
+    cmb.style.display = 'block';
+    document.getElementById('mMovesCount').textContent =
+      `Chev moved the goalposts ${cMoves.length} time${cMoves.length > 1 ? 's' : ''}`;
+    cml.innerHTML = cMoves.map(m => `<div class="move-entry">${m}</div>`).join('');
+  } else {
+    cmb.style.display = 'none';
+  }
 
   document.getElementById('modalBackdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -942,6 +959,19 @@ function updateModal(trade) {
     rt.textContent   = trade.reasoning;
   } else {
     rb.style.display = 'none';
+  }
+
+  // Chev goal post moves
+  const moves = trade.chev_moves || [];
+  const mb = document.getElementById('mMovesBlock');
+  const ml = document.getElementById('mMovesList');
+  if (moves.length > 0) {
+    mb.style.display = 'block';
+    document.getElementById('mMovesCount').textContent =
+      `Chev moved the goalposts ${moves.length} time${moves.length > 1 ? 's' : ''}`;
+    ml.innerHTML = moves.map(m => `<div class="move-entry">${m}</div>`).join('');
+  } else {
+    mb.style.display = 'none';
   }
 }
 

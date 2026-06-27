@@ -285,6 +285,10 @@
   .pending-sym  { font-size: 14px; font-weight: 700; color: var(--white); }
   .pending-sub  { font-size: 11px; color: var(--dim); font-family: var(--mono); margin-top: 2px; }
   .pending-price { font-family: var(--mono); font-size: 14px; color: var(--gold); }
+  .pending-dist  { font-family: var(--mono); font-size: 11px; margin-top: 3px; text-align: right; }
+  .pending-dist.near { color: var(--green); }
+  .pending-dist.mid  { color: var(--gold);  }
+  .pending-dist.far  { color: var(--red);   }
 
   /* ── Footer ──────────────────────────────────────────────── */
   .footer {
@@ -790,14 +794,17 @@ function tradeCardHTML(t) {
 }
 
 function pendingCardHTML(t) {
-  return `<div class="pending-card" onclick="showModal('${t.symbol}')">
+  return `<div class="pending-card" onclick="showModal('${t.symbol}')" data-pending-sym="${t.symbol}">
     <div>
       <div class="pending-sym">${t.symbol}
         <span class="dir-pill dir-${t.direction}" style="margin-left:6px">${t.direction}</span>
       </div>
       <div class="pending-sub">Entry @ ${fmtPrice(t.symbol, t.entry)}</div>
     </div>
-    <div class="pending-price">PENDING</div>
+    <div style="text-align:right">
+      <div class="pending-price">PENDING</div>
+      <div class="pending-dist far" data-entry="${t.entry}" data-sym="${t.symbol}">— away</div>
+    </div>
   </div>`;
 }
 
@@ -1043,6 +1050,20 @@ function updatePnlNumbers() {
       towGreen.style.width = greenPct.toFixed(1) + '%';
       if (towPctEl) towPctEl.textContent = gainMove > 0 ? `+${gainPct.toFixed(0)}%` : lossPct > 0 ? `-${lossPct.toFixed(0)}%` : '0%';
     }
+  });
+
+  // Pending card distances
+  document.querySelectorAll('.pending-dist').forEach(el => {
+    const sym   = el.dataset.sym;
+    const entry = parseFloat(el.dataset.entry);
+    const t     = (state?.trades || []).find(t => t.symbol === sym && t.status === 'PENDING');
+    if (!t) return;
+    const p = livePrice(t);
+    if (!p || !entry) return;
+    const dist = Math.abs(p - entry);
+    const pct  = (dist / p) * 100;
+    el.textContent = fmtPrice(sym, dist) + ' away';
+    el.className   = 'pending-dist ' + (pct < 0.5 ? 'near' : pct < 2 ? 'mid' : 'far');
   });
 
   // Modal (if open)

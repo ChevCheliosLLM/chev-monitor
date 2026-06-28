@@ -257,9 +257,8 @@
 
   /* ── Tug-of-war bar (cards) ─────────────────────────────── */
   .tow-wrap   { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
-  .tow-track  { flex: 1; height: 7px; display: flex; border-radius: 100px; overflow: hidden; }
-  .tow-green  { height: 100%; background: var(--green); transition: width .4s ease; min-width: 0; }
-  .tow-red    { height: 100%; background: var(--red);   flex: 1; }
+  .tow-track  { flex: 1; height: 7px; background: var(--red); border-radius: 100px; overflow: hidden; }
+  .tow-green  { height: 100%; background: var(--green); transition: width .4s ease; }
   .tow-pct    { font-family: var(--mono); font-size: 10px; color: var(--dim); min-width: 32px; text-align: right; }
   .scale-labels {
     display: flex; justify-content: space-between;
@@ -409,6 +408,25 @@
   .modal-reasoning-label { font-size: 10px; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; font-weight: 600; }
   .modal-reasoning-text  { font-size: 13px; color: var(--white); line-height: 1.55; }
   .move-entry { font-family: var(--mono); font-size: 11px; color: var(--dim); padding: 2px 0; }
+
+  .modal-close-btn {
+    display: block;
+    width: calc(100% - 36px);
+    margin: 12px 18px 20px;
+    padding: 13px;
+    border-radius: 8px;
+    border: 1px solid rgba(242,54,69,.4);
+    background: rgba(242,54,69,.08);
+    color: var(--red);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .modal-close-btn:active { background: rgba(242,54,69,.2); }
+  .modal-close-btn:disabled { opacity: 0.4; cursor: default; }
 </style>
 </head>
 <body>
@@ -521,6 +539,9 @@
       <div class="modal-reasoning-label" id="mMovesCount">Chev adjusted 0 times</div>
       <div id="mMovesList"></div>
     </div>
+    <button class="modal-close-btn" id="mCloseBtn" onclick="forceCloseTrade()">
+      Close Trade
+    </button>
   </div>
 </div>
 
@@ -764,7 +785,6 @@ function towBar(t) {
     <div class="tow-wrap">
       <div class="tow-track">
         <div class="tow-green" style="width:${greenPct.toFixed(1)}%"></div>
-        <div class="tow-red"></div>
       </div>
       <div class="tow-pct">${label}</div>
     </div>
@@ -979,6 +999,40 @@ function updateModal(trade) {
     ml.innerHTML = moves.map(m => `<div class="move-entry">${m}</div>`).join('');
   } else {
     mb.style.display = 'none';
+  }
+
+  // Close button — always visible for OPEN/PENDING
+  const closeBtn = document.getElementById('mCloseBtn');
+  closeBtn.disabled = false;
+  closeBtn.textContent = 'Close Trade';
+}
+
+async function forceCloseTrade() {
+  if (!modalTrade) return;
+  const btn = document.getElementById('mCloseBtn');
+  btn.disabled = true;
+  btn.textContent = 'Closing…';
+  const apiBase = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? '' : 'http://localhost:8080';
+  try {
+    const res = await fetch(`${apiBase}/api/close_trade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: modalTrade.symbol }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      btn.textContent = `Closed · ${data.outcome} ${ data.pnl >= 0 ? '+' : ''}${data.pnl.toFixed(2)}`;
+      setTimeout(hideModal, 1800);
+    } else {
+      btn.textContent = `Error: ${data.error}`;
+      btn.disabled = false;
+    }
+  } catch (e) {
+    btn.textContent = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+      ? 'Open localhost:8080/monitor.html to close trades'
+      : `Failed: ${e.message}`;
+    btn.disabled = false;
   }
 }
 
